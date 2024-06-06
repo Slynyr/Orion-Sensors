@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <LinkedList.h>
 #include "esp_camera.h"
 #include "FS.h"
 #include "SD.h"
@@ -14,12 +15,16 @@ camera_fb_t* prevFrame = nullptr;
 
 // Motion Detection
 bool isMotionDetected = false;
-const int pixelThreshold = 1; // CHANGE TO DEFINE? 
+const int pixelThreshold = 15; // CHANGE TO DEFINE? 
+const int datesetSize = 100;
+LinkedList<int> pixelSamples = LinkedList<int>();
 
 // Serial debug
 const bool WAIT_ON_SERIAL_CONNECT = true; 
 
 int getPixelDifference(const camera_fb_t* frame1, const camera_fb_t* frame2, int threshold);
+void addPixelSample(const int pixelSample);
+int getPixelAverate();
 
 void updateMotionStatus() {
   if (isCameraInitialized && (millis() - lastFrameTime) > frameInterval) {
@@ -27,11 +32,9 @@ void updateMotionStatus() {
     camera_fb_t *frame = esp_camera_fb_get();
     
     if (frame) {
-      Serial.println("Captured Frame");
       if (prevFrame) {
-        Serial.println("Captured prev frame");
         int pixelDif = getPixelDifference(prevFrame, frame, pixelThreshold);
-        Serial.println(pixelDif);
+        addPixelSample(pixelDif);
         
         // Releasing buffer from previous tick 
         delete[] prevFrame->buf; // Free the buffer
@@ -53,24 +56,31 @@ void updateMotionStatus() {
   }
 }
 
+void addPixelSample(const int pixelSample) {
+  if (pixelSample != -1) {
+    if (pixelSamples.size() == datesetSize) {
+      pixelSamples.remove(0);
+    }
+    pixelSamples.add(pixelSample);
+  }
+}
+
+int getPixelAverate() {
+  int total = 0;
+
+  for (int i = 0; i < pixelSamples.size(); i++){
+    total += pixelSamples.get(i);
+  }
+
+  return total/pixelSamples.size();
+}
+
 int getPixelDifference(const camera_fb_t* frame1, const camera_fb_t* frame2, int threshold) {
-  /*
   if (!frame1 || !frame2 || frame1->len != frame2->len) {
     return -1;
-  }*/
+  }
 
- if (!frame1) {
-  Serial.println("FRAME1 NULL");
-  return -1; 
- } else if (!frame2) {
-  Serial.println("FRAME2 NULL");
-  return -1; 
- } else if (frame1->len != frame2->len) {
-  Serial.println("FRAME1 and Frame2 NOT SAME len");
-  Serial.println(frame1->len);
-  Serial.println(frame2->len);
-  return -1; 
- }
+
 
   int pixelChangeCount = 0; 
   bool isFrameSame = true;
