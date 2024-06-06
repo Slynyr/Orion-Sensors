@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <LinkedList.h>
+#include <cmath>
 #include "esp_camera.h"
 #include "FS.h"
 #include "SD.h"
@@ -15,26 +16,44 @@ camera_fb_t* prevFrame = nullptr;
 
 // Motion Detection
 bool isMotionDetected = false;
+int currentPixelDiff = 0; 
 const int pixelThreshold = 15; // CHANGE TO DEFINE? 
-const int datesetSize = 100;
+const long motionTriggerThreshold = 1.2; // Percentage | Triggers at 10% or over change
+const int datasetSize = 100;
 LinkedList<int> pixelSamples = LinkedList<int>();
 
-// Serial debug
-const bool WAIT_ON_SERIAL_CONNECT = true; 
+// debug
+const bool WAIT_ON_SERIAL_CONNECT = false; 
 
 int getPixelDifference(const camera_fb_t* frame1, const camera_fb_t* frame2, int threshold);
 void addPixelSample(const int pixelSample);
-int getPixelAverate();
+int getPixelAverage();
 
-void updateMotionStatus() {
+
+void updateMotionstatus(){
+  //if (pixelSamples.size() >= static_cast<int>(round((datasetSize/0.1)))) {   // get atleast 10% samples before decision making
+  if (pixelSamples.size() >= 10) {   // get atleast 10% samples before decision making
+    if (currentPixelDiff/getPixelAverage() >= motionTriggerThreshold) {
+      isMotionDetected = true; 
+    } else {
+      isMotionDetected = false;
+    }
+  } 
+}
+
+void setDebugLED(bool isOn) {
+  digitalWrite(BUILTIN_LED, isOn ? LOW : HIGH);
+}
+
+void captureSample() {
   if (isCameraInitialized && (millis() - lastFrameTime) > frameInterval) {
     lastFrameTime = millis();
     camera_fb_t *frame = esp_camera_fb_get();
     
     if (frame) {
       if (prevFrame) {
-        int pixelDif = getPixelDifference(prevFrame, frame, pixelThreshold);
-        addPixelSample(pixelDif);
+        currentPixelDiff = getPixelDifference(prevFrame, frame, pixelThreshold);
+        addPixelSample(currentPixelDiff);
         
         // Releasing buffer from previous tick 
         delete[] prevFrame->buf; // Free the buffer
@@ -58,14 +77,14 @@ void updateMotionStatus() {
 
 void addPixelSample(const int pixelSample) {
   if (pixelSample != -1) {
-    if (pixelSamples.size() == datesetSize) {
+    if (pixelSamples.size() == datasetSize) {
       pixelSamples.remove(0);
     }
     pixelSamples.add(pixelSample);
   }
 }
 
-int getPixelAverate() {
+int getPixelAverage() {
   int total = 0;
 
   for (int i = 0; i < pixelSamples.size(); i++){
@@ -146,10 +165,17 @@ void setup() {
   } else {
     isCameraInitialized = true; 
   }
+
+  // Debug LED
+  pinMode(LED_BUILTIN, OUTPUT);
+  //digitalWrite(LED_BUILTIN, LOW);
+
  }
 
 void loop() {
-  updateMotionStatus();
+  captureSample();
+  updateMotionstatus();
+  setDebugLED(isMotionDetected);
 }
 
 
