@@ -31,25 +31,46 @@ void updateMotionStatus() {
       if (prevFrame) {
         Serial.println("Captured prev frame");
         int pixelDif = getPixelDifference(prevFrame, frame, pixelThreshold);
-        //Serial.println(pixelDif);
+        Serial.println(pixelDif);
         
         // Releasing buffer from previous tick 
-        esp_camera_fb_return(prevFrame); 
+        delete[] prevFrame->buf; // Free the buffer
+        delete prevFrame; // Free the frame structure
       }
-      prevFrame = frame;
+
+      prevFrame = new camera_fb_t;
+      prevFrame->len = frame->len;
+      prevFrame->width = frame->width;
+      prevFrame->height = frame->height;
+      prevFrame->format = frame->format;
+      prevFrame->buf = new uint8_t[frame->len];
+      memcpy(prevFrame->buf, frame->buf, frame->len);
+
+      esp_camera_fb_return(frame);
     } else {
       Serial.println("Failed to capture image");
     }
-
-    esp_camera_fb_return(frame);
   }
-  
 }
 
 int getPixelDifference(const camera_fb_t* frame1, const camera_fb_t* frame2, int threshold) {
+  /*
   if (!frame1 || !frame2 || frame1->len != frame2->len) {
     return -1;
-  }
+  }*/
+
+ if (!frame1) {
+  Serial.println("FRAME1 NULL");
+  return -1; 
+ } else if (!frame2) {
+  Serial.println("FRAME2 NULL");
+  return -1; 
+ } else if (frame1->len != frame2->len) {
+  Serial.println("FRAME1 and Frame2 NOT SAME len");
+  Serial.println(frame1->len);
+  Serial.println(frame2->len);
+  return -1; 
+ }
 
   int pixelChangeCount = 0; 
   bool isFrameSame = true;
@@ -64,7 +85,7 @@ int getPixelDifference(const camera_fb_t* frame1, const camera_fb_t* frame2, int
       isFrameSame = false;
     }
 
-    Serial.println(isFrameSame);
+    //Serial.println(isFrameSame);
   }
 
   return pixelChangeCount;
@@ -99,8 +120,8 @@ void setup() {
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
-  config.frame_size = FRAMESIZE_UXGA;
-  config.pixel_format = PIXFORMAT_JPEG; 
+  config.frame_size = FRAMESIZE_SVGA;
+  config.pixel_format = PIXFORMAT_RGB565; 
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.jpeg_quality = 12;
