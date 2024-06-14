@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "../../../TEJ-Resources"
+		},
+		{
+			"name": "Radar Test",
+			"path": "../../../../PlatformIO/Projects/Radar Test"
+		},
+		{
+			"name": "Orion Framework",
+			"path": ".."
+		}
+	],
+	"settings": {}
+}
